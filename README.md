@@ -55,7 +55,7 @@ python app.py
 
 ## 打包成独立可执行文件（Windows）
 
-如果你希望家里 Windows 电脑不需要安装 Python，可以打包成单个 .exe：
+如果希望使用 Windows 电脑且不需安装 Python，可以打包成单个 .exe：
 
 ```powershell
 # 先安装 pyinstaller
