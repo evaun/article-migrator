@@ -8,7 +8,7 @@ from urllib.parse import urlparse
 from datetime import datetime
 
 import requests
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, NavigableString
 from flask import Flask, render_template, request, jsonify, send_file
 from slugify import slugify
 
@@ -97,6 +97,24 @@ def fetch_article(url, custom_headers=None):
     resp.encoding = 'utf-8'
     return resp.text, domain
 
+def flatten_nested_p(content_div):
+    """展平嵌套的 <p> 结构（IGN 中国特有问题）。
+
+    IGN 中国的 HTML 结构: <p>text+figure+<p>text+figure+<p>...</p></p></p>
+    每个 <p> 既包含自己的文字/图片，又嵌套了下一个 <p>。
+    这个函数把嵌套结构展平，把每个 <p> 的"直属内容"提升到 content_div 下面，
+    消除嵌套关系，使得后续 find_all(recursive=False) 能正常工作。
+    """
+    for p_tag in content_div.find_all('p'):
+        # 检查这个 <p> 里是否有嵌套的子 <p>
+        child_ps = p_tag.find_all('p', recursive=False)
+        if not child_ps:
+            continue
+        # 把子 <p> 从当前 <p> 中提取出来，放到当前 <p> 后面
+        for child_p in child_ps:
+            child_p.extract()
+            p_tag.insert_after(child_p)
+
 def extract_article_data(html, url, domain):
     soup = BeautifulSoup(html, 'html.parser')
 
@@ -125,6 +143,9 @@ def extract_article_data(html, url, domain):
 
     clean_content_tree(content_div)
 
+    # 展平嵌套的 <p> 结构，确保后续只遍历直接子节点不会重复
+    flatten_nested_p(content_div)
+
     text_content = f"标题：{title}\n原文链接：{url}\n\n"
     img_counter = 1
     seen_hashes = set()
@@ -132,53 +153,101 @@ def extract_article_data(html, url, domain):
     images_data = []
 
     stop_phrases = ["本文编译自", "未经授权禁止转载", "相关阅读", "猜你喜欢",
-                    "原文链接", "返回搜狐", "您还未登录", "免责声明", "版权声明"]
+                    "原文链接", "返回搜狐", "您还未登录", "免责声明", "版权声明",
+                    "本文由", "原创撰写", "编辑：", "作者：", "撰文："]
 
-    tags = content_div.find_all(['p', 'figure', 'img', 'h2', 'h3', 'h4', 'h5'])
+    # 只遍历直接子元素，不再递归 find_all
+    tags = content_div.find_all(['p', 'figure', 'img', 'h2', 'h3', 'h4', 'h5', 'div'], recursive=False)
+    truncate_mode = False
 
     for element in tags:
-        current_text = element.get_text().strip()
-        should_break = False
-
-        if element.name in ['h2', 'h3', 'h4', 'h5'] and "相关阅读" in current_text:
+        if truncate_mode:
             break
 
-        for phrase in stop_phrases:
-            if phrase in current_text and len(current_text) < 50:
-                should_break = True
-                break
-        if should_break:
-            break
-
-        if "登录" in current_text and len(current_text) < 20:
+        # 跳过空 div（可能是残留容器）
+        if element.name == 'div' and not element.find(['p', 'img', 'figure', 'h2', 'h3', 'h4', 'h5'], recursive=False):
+            # div 里没有我们要的内容元素，跳过
             continue
 
-        # Images
-        if element.name in ['figure', 'img']:
-            caption = ""
-            if element.name == 'figure':
-                cap_tag = element.find('figcaption')
-                if cap_tag:
-                    caption = cap_tag.get_text().strip()
+        # 如果是包含内容的 div，展开其直接子元素处理
+        if element.name == 'div' and element.find(['p', 'img', 'figure', 'h2', 'h3', 'h4', 'h5'], recursive=False):
+            # 展平 div 内部可能存在的嵌套 p
+            flatten_nested_p(element)
+            inner_tags = element.find_all(['p', 'figure', 'img', 'h2', 'h3', 'h4', 'h5'], recursive=False)
+            for inner in inner_tags:
+                result = process_element(inner, stop_phrases, seen_hashes, seen_img_urls,
+                                        img_counter, images_data, text_content, url, domain, title)
+                if result['truncate']:
+                    truncate_mode = True
+                    break
+                img_counter = result['img_counter']
+                text_content = result['text_content']
+            continue
 
-            img_obj = element if element.name == 'img' else element.find('img')
-            if img_obj:
-                possible_attrs = ['data-src', 'data-original', 'data-url', 'src']
-                img_url = None
-                for attr in possible_attrs:
-                    val = img_obj.get(attr)
-                    if val and not val.startswith('data:'):
-                        img_url = val
-                        break
+        result = process_element(element, stop_phrases, seen_hashes, seen_img_urls,
+                                img_counter, images_data, text_content, url, domain, title)
+        if result['truncate']:
+            truncate_mode = True
+            break
+        img_counter = result['img_counter']
+        text_content = result['text_content']
 
-                if img_url:
-                    if img_url.startswith('//'):
-                        img_url = 'https:' + img_url
-                    elif img_url.startswith('/'):
-                        img_url = f"https://{domain}" + img_url
+    return {
+        'title': title,
+        'safe_title': safe_title,
+        'url': url,
+        'text': text_content,
+        'images': images_data
+    }
 
-                    if img_url in seen_img_urls:
-                        continue
+def process_element(element, stop_phrases, seen_hashes, seen_img_urls,
+                    img_counter, images_data, text_content, url, domain, title):
+    """处理单个元素，返回更新后的状态。"""
+    truncate = False
+
+    # 获取文本 —— 对 <p> 用 get_text() 即可，因为已经展平了嵌套结构
+    current_text = element.get_text().strip()
+
+    # Heading-level "相关阅读" trigger
+    if element.name in ['h2', 'h3', 'h4', 'h5'] and "相关阅读" in current_text:
+        return {'truncate': True, 'img_counter': img_counter, 'text_content': text_content}
+
+    # Stop-phrase detection
+    for phrase in stop_phrases:
+        if phrase in current_text and len(current_text) < 120:
+            truncate = True
+            break
+    if truncate:
+        return {'truncate': True, 'img_counter': img_counter, 'text_content': text_content}
+
+    if "登录" in current_text and len(current_text) < 20:
+        return {'truncate': False, 'img_counter': img_counter, 'text_content': text_content}
+
+    # Images
+    if element.name in ['figure', 'img']:
+        caption = ""
+        if element.name == 'figure':
+            cap_tag = element.find('figcaption')
+            if cap_tag:
+                caption = cap_tag.get_text().strip()
+
+        img_obj = element if element.name == 'img' else element.find('img')
+        if img_obj:
+            possible_attrs = ['data-src', 'data-original', 'data-url', 'src']
+            img_url = None
+            for attr in possible_attrs:
+                val = img_obj.get(attr)
+                if val and not val.startswith('data:'):
+                    img_url = val
+                    break
+
+            if img_url:
+                if img_url.startswith('//'):
+                    img_url = 'https:' + img_url
+                elif img_url.startswith('/'):
+                    img_url = f"https://{domain}" + img_url
+
+                if img_url not in seen_img_urls:
                     seen_img_urls.add(img_url)
 
                     try:
@@ -200,34 +269,48 @@ def extract_article_data(html, url, domain):
                         })
                         text_content += f"\n【此处插入图片 {img_counter}】\n"
                         if caption:
-                            text_content += f"【图注】：{caption}\n"
+                            cap_fp = clean_text_for_hash(caption)
+                            if len(cap_fp) > 5 and cap_fp not in seen_hashes:
+                                seen_hashes.add(cap_fp)
+                                text_content += f"【图注】：{caption}\n"
                         img_counter += 1
                     except Exception:
                         pass
-            continue
+        return {'truncate': False, 'img_counter': img_counter, 'text_content': text_content}
 
-        # Text
-        if element.name in ['p', 'h2', 'h3', 'h4', 'h5']:
-            text = element.get_text().strip()
-            if not text:
-                continue
-            text_fingerprint = clean_text_for_hash(text)
-            if len(text_fingerprint) > 5 and text_fingerprint in seen_hashes:
-                continue
-            seen_hashes.add(text_fingerprint)
+    # 先处理 <p> 内部嵌套的 figure/img（展平后 figure 仍在 <p> 内部）
+    if element.name == 'p':
+        inner_media = element.find_all(['figure', 'img'], recursive=False)
+        for media_el in inner_media:
+            result = process_element(media_el, stop_phrases, seen_hashes, seen_img_urls,
+                                    img_counter, images_data, text_content, url, domain, title)
+            if result['truncate']:
+                return result
+            img_counter = result['img_counter']
+            text_content = result['text_content']
 
-            if element.name.startswith('h'):
-                text_content += f"【小标题】{text}\n\n"
-            else:
-                text_content += f"{text}\n\n"
+    # Text
+    if element.name in ['p', 'h2', 'h3', 'h4', 'h5']:
+        # 对 <p> 只取直接 NavigableString，排除已处理的 figure/img 文字
+        if element.name == 'p':
+            from bs4 import NavigableString
+            text = ''.join(str(s) for s in element.contents
+                          if isinstance(s, NavigableString)).strip()
+        else:
+            text = current_text
+        if not text:
+            return {'truncate': False, 'img_counter': img_counter, 'text_content': text_content}
+        text_fingerprint = clean_text_for_hash(text)
+        if len(text_fingerprint) > 5 and text_fingerprint in seen_hashes:
+            return {'truncate': False, 'img_counter': img_counter, 'text_content': text_content}
+        seen_hashes.add(text_fingerprint)
 
-    return {
-        'title': title,
-        'safe_title': safe_title,
-        'url': url,
-        'text': text_content,
-        'images': images_data
-    }
+        if element.name.startswith('h'):
+            text_content += f"【小标题】{text}\n\n"
+        else:
+            text_content += f"{text}\n\n"
+
+    return {'truncate': False, 'img_counter': img_counter, 'text_content': text_content}
 
 def create_zip_from_article(article_data):
     zip_buffer = io.BytesIO()
