@@ -1,0 +1,796 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>文章搬运助手 | Article Migrator</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Noto+Sans+SC:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-primary: #0f1117;
+            --bg-secondary: #1a1d27;
+            --bg-tertiary: #222633;
+            --bg-hover: #2a2e3b;
+            --text-primary: #e8eaf0;
+            --text-secondary: #9ca3af;
+            --text-muted: #6b7280;
+            --accent: #6366f1;
+            --accent-hover: #818cf8;
+            --accent-dim: rgba(99, 102, 241, 0.15);
+            --border: #2d3142;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --error: #ef4444;
+            --radius: 12px;
+            --radius-sm: 8px;
+            --shadow: 0 4px 24px rgba(0,0,0,0.4);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', 'Noto Sans SC', -apple-system, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            line-height: 1.6;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 40px 20px;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 48px;
+        }
+
+        header h1 {
+            font-size: 28px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            letter-spacing: -0.5px;
+        }
+
+        header p {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 24px;
+            background: var(--bg-secondary);
+            padding: 6px;
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+        }
+
+        .tab-btn {
+            flex: 1;
+            padding: 12px 20px;
+            border: none;
+            background: transparent;
+            color: var(--text-secondary);
+            font-size: 14px;
+            font-weight: 500;
+            border-radius: var(--radius-sm);
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .tab-btn:hover {
+            color: var(--text-primary);
+        }
+
+        .tab-btn.active {
+            background: var(--accent-dim);
+            color: var(--accent);
+        }
+
+        .panel {
+            display: none;
+        }
+
+        .panel.active {
+            display: block;
+        }
+
+        .card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 13px;
+            font-weight: 500;
+            color: var(--text-secondary);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        input[type="text"],
+        textarea {
+            width: 100%;
+            padding: 14px 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+            outline: none;
+            transition: border-color 0.2s, box-shadow 0.2s;
+            resize: vertical;
+        }
+
+        input[type="text"]:focus,
+        textarea:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-dim);
+        }
+
+        textarea {
+            min-height: 160px;
+            line-height: 1.8;
+        }
+
+        .input-hint {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-top: 6px;
+        }
+
+        .format-options {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+
+        .format-option {
+            flex: 1;
+            position: relative;
+        }
+
+        .format-option input {
+            position: absolute;
+            opacity: 0;
+        }
+
+        .format-option label {
+            display: block;
+            padding: 16px;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            text-transform: none;
+            letter-spacing: 0;
+            font-size: 14px;
+            color: var(--text-secondary);
+            margin-bottom: 0;
+        }
+
+        .format-option input:checked + label {
+            border-color: var(--accent);
+            background: var(--accent-dim);
+            color: var(--accent);
+        }
+
+        .format-option label:hover {
+            border-color: var(--accent-hover);
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 14px 28px;
+            background: var(--accent);
+            color: white;
+            border: none;
+            border-radius: var(--radius-sm);
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn:hover {
+            background: var(--accent-hover);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            box-shadow: none;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 12px;
+        }
+
+        .spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid rgba(255,255,255,0.3);
+            border-top-color: white;
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Results */
+        .result-area {
+            margin-top: 24px;
+        }
+
+        .result-card {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius);
+            padding: 24px;
+            margin-bottom: 16px;
+        }
+
+        .result-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .status-icon {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 16px;
+            flex-shrink: 0;
+        }
+
+        .status-icon.success {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+        }
+
+        .status-icon.error {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--error);
+        }
+
+        .result-title {
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .result-meta {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        .preview-box {
+            background: var(--bg-primary);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 20px;
+            margin-top: 16px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-size: 14px;
+            line-height: 1.8;
+        }
+
+        .preview-box h1 {
+            font-size: 20px;
+            margin-bottom: 12px;
+        }
+
+        .preview-box h2 {
+            font-size: 16px;
+            margin: 20px 0 10px;
+            color: var(--text-secondary);
+        }
+
+        .preview-box p {
+            margin-bottom: 12px;
+            color: var(--text-secondary);
+        }
+
+        .preview-box .meta {
+            font-size: 12px;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .preview-box .meta a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        .preview-box img {
+            max-width: 100%;
+            border-radius: var(--radius-sm);
+            margin: 12px 0;
+        }
+
+        .preview-box .caption {
+            font-size: 13px;
+            color: var(--text-muted);
+            font-style: italic;
+            text-align: center;
+            margin-top: -8px;
+            margin-bottom: 16px;
+        }
+
+        .download-btn {
+            margin-top: 16px;
+        }
+
+        /* Batch results */
+        .batch-list {
+            margin-top: 12px;
+        }
+
+        .batch-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px 14px;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-sm);
+            margin-bottom: 8px;
+            font-size: 13px;
+        }
+
+        .batch-item .status {
+            font-size: 11px;
+            padding: 2px 8px;
+            border-radius: 4px;
+            font-weight: 500;
+        }
+
+        .batch-item .status.ok {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--success);
+        }
+
+        .batch-item .status.error {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--error);
+        }
+
+        .batch-item .title {
+            color: var(--text-secondary);
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            max-width: 400px;
+        }
+
+        /* Error */
+        .error-box {
+            background: rgba(239, 68, 68, 0.08);
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: var(--radius-sm);
+            padding: 16px;
+            color: var(--error);
+            font-size: 14px;
+            margin-top: 16px;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 24px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            background: var(--bg-secondary);
+            border: 1px solid var(--border);
+            padding: 14px 24px;
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            font-size: 14px;
+            z-index: 1000;
+            opacity: 0;
+            transition: all 0.3s ease;
+            pointer-events: none;
+        }
+
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 40px 0 20px;
+            color: var(--text-muted);
+            font-size: 12px;
+        }
+
+        /* Responsive */
+        @media (max-width: 600px) {
+            .container {
+                padding: 20px 16px;
+            }
+            header h1 {
+                font-size: 22px;
+            }
+            .tabs {
+                flex-direction: column;
+            }
+            .format-options {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>文章搬运助手</h1>
+            <p>支持 IGN 中国 / 篝火营地 / 任意网页的文章抓取与排版</p>
+        </header>
+
+        <div class="tabs">
+            <button class="tab-btn active" data-tab="single">单篇抓取</button>
+            <button class="tab-btn" data-tab="batch">批量下载</button>
+        </div>
+
+        <!-- Single Article Panel -->
+        <div class="panel active" id="panel-single">
+            <div class="card">
+                <div class="form-group">
+                    <label>文章链接</label>
+                    <input type="text" id="single-url" placeholder="https://www.ign.com.cn/article/xxx 或任意网页链接">
+                    <p class="input-hint">支持 IGN 中国、篝火营地及任意标准网页</p>
+                </div>
+
+                <div class="form-group">
+                    <label>输出格式</label>
+                    <div class="format-options">
+                        <div class="format-option">
+                            <input type="radio" name="single-format" id="fmt-zip" value="zip" checked>
+                            <label for="fmt-zip">
+                                <strong>ZIP 打包</strong><br>
+                                <small>文本 + 图片</small>
+                            </label>
+                        </div>
+                        <div class="format-option">
+                            <input type="radio" name="single-format" id="fmt-md" value="markdown">
+                            <label for="fmt-md">
+                                <strong>Markdown</strong><br>
+                                <small>纯文本格式</small>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="btn-group">
+                    <button class="btn" id="btn-preview" onclick="doPreview()">
+                        <span>预览内容</span>
+                    </button>
+                    <button class="btn btn-secondary" id="btn-download" onclick="doDownload()">
+                        <span>直接下载</span>
+                    </button>
+                </div>
+            </div>
+
+            <div class="result-area" id="single-result"></div>
+        </div>
+
+        <!-- Batch Panel -->
+        <div class="panel" id="panel-batch">
+            <div class="card">
+                <div class="form-group">
+                    <label>链接列表（每行一个）</label>
+                    <textarea id="batch-urls" placeholder="https://www.ign.com.cn/article/xxx
+https://gouhuo.qq.com/content/detail/xxx
+https://example.com/article/yyy"></textarea>
+                    <p class="input-hint">每行输入一个链接，支持混合格式</p>
+                </div>
+
+                <div class="form-group">
+                    <label>输出格式</label>
+                    <div class="format-options">
+                        <div class="format-option">
+                            <input type="radio" name="batch-format" id="batch-fmt-zip" value="zip" checked>
+                            <label for="batch-fmt-zip">
+                                <strong>ZIP 打包</strong><br>
+                                <small>文本 + 图片</small>
+                            </label>
+                        </div>
+                        <div class="format-option">
+                            <input type="radio" name="batch-format" id="batch-fmt-md" value="markdown">
+                            <label for="batch-fmt-md">
+                                <strong>Markdown</strong><br>
+                                <small>纯文本格式</small>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+
+                <button class="btn" id="btn-batch" onclick="doBatch()">
+                    <span>开始批量下载</span>
+                </button>
+            </div>
+
+            <div class="result-area" id="batch-result"></div>
+        </div>
+
+        <footer>
+            Article Migrator — 文章抓取与排版工具
+        </footer>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // Tab switching
+        document.querySelectorAll('.tab-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                document.querySelectorAll('.panel').forEach(p => p.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById('panel-' + btn.dataset.tab).classList.add('active');
+            });
+        });
+
+        function showToast(msg) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.classList.add('show');
+            setTimeout(() => t.classList.remove('show'), 2500);
+        }
+
+        function setLoading(btnId, loading) {
+            const btn = document.getElementById(btnId);
+            if (loading) {
+                btn.disabled = true;
+                btn.innerHTML = '<div class="spinner"></div><span>处理中...</span>';
+            } else {
+                btn.disabled = false;
+                const originalText = {
+                    'btn-preview': '预览内容',
+                    'btn-download': '直接下载',
+                    'btn-batch': '开始批量下载'
+                };
+                btn.innerHTML = '<span>' + originalText[btnId] + '</span>';
+            }
+        }
+
+        function getSelectedFormat(name) {
+            return document.querySelector('input[name="' + name + '"]:checked').value;
+        }
+
+        function downloadBase64(filename, base64Data) {
+            const byteCharacters = atob(base64Data);
+            const byteNumbers = new Array(byteCharacters.length);
+            for (let i = 0; i < byteCharacters.length; i++) {
+                byteNumbers[i] = byteCharacters.charCodeAt(i);
+            }
+            const byteArray = new Uint8Array(byteNumbers);
+            const blob = new Blob([byteArray], { type: 'application/zip' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('下载已开始');
+        }
+
+        async function doPreview() {
+            const url = document.getElementById('single-url').value.trim();
+            if (!url) {
+                showToast('请输入文章链接');
+                return;
+            }
+
+            setLoading('btn-preview', true);
+            const resultArea = document.getElementById('single-result');
+            resultArea.innerHTML = '';
+
+            try {
+                const resp = await fetch('/api/preview', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url })
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    resultArea.innerHTML = `
+                        <div class="result-card">
+                            <div class="result-header">
+                                <div class="status-icon success">&#10003;</div>
+                                <div>
+                                    <div class="result-title">${data.title}</div>
+                                    <div class="result-meta">${data.word_count} 字 · ${data.image_count} 张图片</div>
+                                </div>
+                            </div>
+                            <div class="preview-box">${data.preview_html}</div>
+                        </div>
+                    `;
+                } else {
+                    resultArea.innerHTML = `<div class="error-box">抓取失败: ${data.error}</div>`;
+                }
+            } catch (e) {
+                resultArea.innerHTML = `<div class="error-box">请求失败: ${e.message}</div>`;
+            } finally {
+                setLoading('btn-preview', false);
+            }
+        }
+
+        async function doDownload() {
+            const url = document.getElementById('single-url').value.trim();
+            const format = getSelectedFormat('single-format');
+            if (!url) {
+                showToast('请输入文章链接');
+                return;
+            }
+
+            setLoading('btn-download', true);
+            const resultArea = document.getElementById('single-result');
+            resultArea.innerHTML = '';
+
+            try {
+                const resp = await fetch('/api/fetch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ url, format })
+                });
+                const data = await resp.json();
+
+                if (data.success) {
+                    if (format === 'markdown') {
+                        const blob = new Blob([data.markdown], { type: 'text/markdown' });
+                        const url_obj = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url_obj;
+                        a.download = `${data.title.replace(/[^\w\u4e00-\u9fa5]/g, '_')}.md`;
+                        document.body.appendChild(a);
+                        a.click();
+                        document.body.removeChild(a);
+                        URL.revokeObjectURL(url_obj);
+                        showToast('Markdown 已下载');
+                    } else {
+                        downloadBase64(data.filename, data.zip_base64);
+                    }
+                    resultArea.innerHTML = `
+                        <div class="result-card">
+                            <div class="result-header">
+                                <div class="status-icon success">&#10003;</div>
+                                <div>
+                                    <div class="result-title">${data.title}</div>
+                                    <div class="result-meta">${data.image_count} 张图片 · 已打包下载</div>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                } else {
+                    resultArea.innerHTML = `<div class="error-box">抓取失败: ${data.error}</div>`;
+                }
+            } catch (e) {
+                resultArea.innerHTML = `<div class="error-box">请求失败: ${e.message}</div>`;
+            } finally {
+                setLoading('btn-download', false);
+            }
+        }
+
+        async function doBatch() {
+            const urls = document.getElementById('batch-urls').value.trim();
+            const format = getSelectedFormat('batch-format');
+            if (!urls) {
+                showToast('请输入链接列表');
+                return;
+            }
+
+            setLoading('btn-batch', true);
+            const resultArea = document.getElementById('batch-result');
+            resultArea.innerHTML = '<div class="result-card"><div class="result-meta">正在处理，请稍候...</div></div>';
+
+            try {
+                const resp = await fetch('/api/batch', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ urls, format })
+                });
+                const data = await resp.json();
+
+                if (data.zip_base64) {
+                    downloadBase64(data.filename, data.zip_base64);
+                }
+
+                let html = `
+                    <div class="result-card">
+                        <div class="result-header">
+                            <div class="status-icon ${data.errors.length === 0 ? 'success' : 'error'}">
+                                ${data.errors.length === 0 ? '&#10003;' : '!'}
+                            </div>
+                            <div>
+                                <div class="result-title">批量下载完成</div>
+                                <div class="result-meta">成功 ${data.results.filter(r => r.status === 'ok').length} / ${data.results.length} 篇</div>
+                            </div>
+                        </div>
+                        <div class="batch-list">
+                `;
+
+                data.results.forEach(r => {
+                    html += `
+                        <div class="batch-item">
+                            <span class="title" title="${r.url}">${r.title || r.url}</span>
+                            <span class="status ${r.status}">${r.status === 'ok' ? '成功' : '失败'}</span>
+                        </div>
+                    `;
+                });
+
+                if (data.errors.length > 0) {
+                    html += '<div style="margin-top:12px;color:var(--error);font-size:13px;">失败详情：</div>';
+                    data.errors.forEach(e => {
+                        html += `<div style="font-size:12px;color:var(--text-muted);margin-top:4px;">${e.url}: ${e.error}</div>`;
+                    });
+                }
+
+                html += '</div></div>';
+                resultArea.innerHTML = html;
+
+            } catch (e) {
+                resultArea.innerHTML = `<div class="error-box">请求失败: ${e.message}</div>`;
+            } finally {
+                setLoading('btn-batch', false);
+            }
+        }
+    </script>
+</body>
+</html>
