@@ -84,5 +84,3 @@ web_migrator/
 
 - 后端：Flask + requests + BeautifulSoup4 + trafilatura
 - 前端：纯 HTML/CSS/JS，无框架依赖
-- 单篇抓取逻辑移植自原 `IGN_Migrator.py`
-- 批量下载逻辑移植自原 `final_download.py`
