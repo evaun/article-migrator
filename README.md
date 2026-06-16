@@ -9,6 +9,10 @@
 - **智能识别**：针对 IGN 中国、篝火营地做了专项适配，其他网站自动通用抓取
 - **内容清理**：自动去除广告、导航栏、评论区、相关阅读等干扰元素
 
+## 线上已部署版本
+
+https://article-migrator.onrender.com/
+
 ## 本地运行
 
 ### macOS / Linux
@@ -51,7 +55,7 @@ python app.py
 
 ## 打包成独立可执行文件（Windows）
 
-如果你希望家里 Windows 电脑不需要安装 Python，可以打包成单个 .exe：
+如果希望使用 Windows 电脑且不需安装 Python，可以打包成单个 .exe：
 
 ```powershell
 # 先安装 pyinstaller
@@ -64,30 +68,6 @@ pyinstaller --onefile --add-data "templates;templates" --add-data "static;static
 ```
 
 > 注意：需要在 Windows 环境下执行打包才能生成 Windows 可用的 .exe。可以在 Windows 上按上述步骤装 Python 后执行打包命令。
-
-## 部署到线上（Render 免费版）
-
-1. 注册 [Render](https://render.com/) 账号（支持 GitHub 登录）
-2. 新建一个 Web Service
-3. 选择你的代码仓库，或直接用本目录
-4. 设置：
-   - **Build Command**: `pip install -r requirements.txt`
-   - **Start Command**: `gunicorn app:app`
-   - **Runtime**: Python 3
-5. 部署完成后会获得一个 `https://xxx.onrender.com` 的公网地址
-
-## 部署到线上（PythonAnywhere 免费版）
-
-1. 注册 [PythonAnywhere](https://www.pythonanywhere.com/)
-2. 上传项目文件到 `~/web_migrator/`
-3. 创建一个新的 Web App，选择 Flask + Python 3.x
-4. 修改 WSGI 配置文件，将路径指向 `~/web_migrator/app.py`
-5. 在 Console 里执行：
-   ```bash
-   cd ~/web_migrator
-   pip install -r requirements.txt
-   ```
-6. 点击 Reload，获得公网地址
 
 ## 文件结构
 
